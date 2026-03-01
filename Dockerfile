@@ -11,7 +11,8 @@ RUN apt-get update && \
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN unset ALL_PROXY all_proxy HTTP_PROXY HTTPS_PROXY http_proxy https_proxy && \
+    pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
