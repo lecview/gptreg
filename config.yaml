@@ -1,0 +1,18 @@
+# 注册数量
+count: 3
+
+# 并发数 (1 为串行)
+max_workers: 1
+
+# 上传配置 CLIProxyAPI 0:False，1:True
+upload: 0
+upload_url:
+upload_token:
+
+# Cloudflare Worker 邮箱服务
+worker_url:
+own_domain:
+
+# 是否输出日志到文件  0:False，1:True
+log_to_file: 0
+
