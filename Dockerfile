@@ -6,6 +6,7 @@ RUN apt-get update && \
         build-essential \
         libcurl4-openssl-dev \
         libssl-dev \
+        curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
