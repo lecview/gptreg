@@ -247,6 +247,9 @@ def submit_callback_url(*, callback_url: str, expected_state: str, code_verifier
 # ========== 上传 ==========
 
 def upload_auth_file(filepath: str, upload_url: str, upload_token: str):
+    """上传 auth 文件到 CLIProxyAPI Management API"""
+    upload_url = upload_url.rstrip("/")
+    url = f"{upload_url}/v0/management/auth-files"
     boundary = f"----WebKitFormBoundary{secrets.token_hex(8)}"
     filename = os.path.basename(filepath)
     with open(filepath, "rb") as f:
@@ -256,7 +259,7 @@ def upload_auth_file(filepath: str, upload_url: str, upload_token: str):
         f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
         f"Content-Type: application/json\r\n\r\n"
     ).encode() + file_data + f"\r\n--{boundary}--\r\n".encode()
-    req = urllib.request.Request(upload_url, data=body, method="POST", headers={
+    req = urllib.request.Request(url, data=body, method="POST", headers={
         "Authorization": f"Bearer {upload_token}",
         "Content-Type": f"multipart/form-data; boundary={boundary}",
         "Accept": "application/json, text/plain, */*",
