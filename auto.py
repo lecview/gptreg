@@ -360,6 +360,7 @@ def register_one(index: int, total: int, cfg: dict) -> bool:
 
         data = json.loads(result)
         email = data.get("email", f"unknown_{index}")
+        email = email.strip().strip("'\"")
         filename = f"files/{email}.json"
         with open(filename, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
