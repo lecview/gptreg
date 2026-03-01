@@ -16,7 +16,6 @@ RUN unset ALL_PROXY all_proxy HTTP_PROXY HTTPS_PROXY http_proxy https_proxy && \
 
 COPY . .
 
-RUN mkdir -p files logs
+RUN mkdir -p files logs && chmod +x entrypoint.sh
 
-# 容器保持运行，不自动执行注册
-CMD ["sleep", "infinity"]
+ENTRYPOINT ["sh", "entrypoint.sh"]
