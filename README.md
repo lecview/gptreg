@@ -5,7 +5,7 @@ OpenAI Codex 账号自动注册工具，支持 Docker / Zeabur 部署。
 ## 功能
 
 - 自动注册 OpenAI Codex 账号并获取 OAuth Token
-- 通过 Cloudflare Worker 接收验证码
+- 支持两种邮箱后端：Cloudflare Worker / Cloud-Mail
 - 注册结果自动上传到 CLIProxyAPI
 - 支持并发注册、循环执行、连续失败自动暂停
 
@@ -26,12 +26,25 @@ docker run -d --env-file .env auto-register
 
 ## 环境变量
 
-### 必填
+### 邮箱服务（二选一）
 
 | 变量 | 说明 |
 |------|------|
-| `WORKER_URL` | Cloudflare Worker 地址（获取验证码） |
-| `OWN_DOMAIN` | 邮箱域名，如 `example.com` |
+| `EMAIL_MODE` | `worker`（默认）= Cloudflare Worker，`cloudmail` = Cloud-Mail |
+| `OWN_DOMAIN` | 邮箱域名，如 `example.com`（两种模式都需要） |
+
+**Worker 模式：**
+
+| 变量 | 说明 |
+|------|------|
+| `WORKER_URL` | Cloudflare Worker 地址 |
+
+**Cloud-Mail 模式：**
+
+| 变量 | 说明 |
+|------|------|
+| `CLOUDMAIL_URL` | Cloud-Mail 服务地址，如 `https://mail.example.com` |
+| `CLOUDMAIL_TOKEN` | Cloud-Mail API Token（通过 genToken 接口生成） |
 
 ### 可选
 
