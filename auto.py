@@ -50,7 +50,10 @@ def create_email(cfg: dict) -> dict:
         raise ValueError("缺少 OWN_DOMAIN 配置")
     domains = [d.strip() for d in raw_domain.split(",") if d.strip()]
     domain = random.choice(domains)
-    login = f"oai_{int(time.time())}_{random.randint(100, 999)}"
+    prefix = random.choice(["oai", "gpt", "usr", "reg", "acc", "neo", "bot"])
+    ts = secrets.token_hex(4)
+    num = random.randint(10, 9999)
+    login = f"{prefix}{ts}{num}"
     address = f"{login}@{domain}"
 
     if mode == "cloudmail":
@@ -58,9 +61,10 @@ def create_email(cfg: dict) -> dict:
         cm_token = cfg.get("cloudmail_token", "")
         if not cm_url or not cm_token:
             raise ValueError("Cloud-Mail 模式需要 CLOUDMAIL_URL 和 CLOUDMAIL_TOKEN")
+        pwd = secrets.token_urlsafe(12)
         resp = std_requests.post(f"{cm_url}/api/public/addUser",
             headers={"Authorization": cm_token, "Content-Type": "application/json"},
-            json={"name": login, "domain": domain},
+            json={"name": login, "domain": domain, "password": pwd},
             timeout=10, proxies={"http": None, "https": None})
         if resp.status_code == 200 and resp.json().get("code") == 200:
             log.info(f"[CloudMail] 创建邮箱成功: {address}")
