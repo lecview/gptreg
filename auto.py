@@ -45,9 +45,11 @@ def setup_logging(log_to_file: bool):
 def create_email(cfg: dict) -> dict:
     """创建邮箱，返回 {"address": ...}"""
     mode = cfg.get("email_mode", "worker")
-    domain = cfg.get("own_domain")
-    if not domain:
+    raw_domain = cfg.get("own_domain")
+    if not raw_domain:
         raise ValueError("缺少 OWN_DOMAIN 配置")
+    domains = [d.strip() for d in raw_domain.split(",") if d.strip()]
+    domain = random.choice(domains)
     login = f"oai_{int(time.time())}_{random.randint(100, 999)}"
     address = f"{login}@{domain}"
 
