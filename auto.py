@@ -59,8 +59,12 @@ def get_oai_code(email: str, cfg: dict) -> str:
         raise ValueError("缺少 WORKER_URL 配置")
     worker_url = worker_url.rstrip("/")
 
-    log.info(f"正在通过 Worker 监听验证码 (目标: {email})...")
-    for i in range(60):
+    otp_timeout = int(os.environ.get("OTP_TIMEOUT", "30"))
+    poll_interval = 3
+    max_polls = otp_timeout // poll_interval
+
+    log.info(f"正在通过 Worker 监听验证码 (目标: {email}, 超时: {otp_timeout}s)...")
+    for i in range(max_polls):
         try:
             resp = std_requests.get(worker_url, params={"email": email}, timeout=10)
             if resp.status_code == 200:
@@ -70,7 +74,7 @@ def get_oai_code(email: str, cfg: dict) -> str:
                                 or data.get("code_digit") or data.get("code_alpha"))
                     if raw_code:
                         clean_code = str(raw_code).replace("-", "").strip()
-                        log.info(f"Worker 返回验证码: {clean_code} (原始: {raw_code})")
+                        log.info(f"Worker 返回验证码: {clean_code} (原始: {raw_code}，耗时: {(i+1)*poll_interval}s)")
                         return clean_code
                 except Exception:
                     if len(resp.text) < 20:
@@ -79,7 +83,9 @@ def get_oai_code(email: str, cfg: dict) -> str:
                             return clean_code
         except Exception as e:
             log.warning(f"Worker 请求异常: {e}")
-        time.sleep(3)
+        if (i + 1) % 10 == 0:
+            log.info(f"等待验证码中... 已等待 {(i+1)*poll_interval}s / {otp_timeout}s")
+        time.sleep(poll_interval)
     return None
 
 
@@ -400,18 +406,27 @@ def _env_override(cfg: dict):
     return cfg
 
 
-def _run_batch(cfg: dict):
-    """执行一轮注册"""
+def _run_batch(cfg: dict) -> bool:
+    """执行一轮注册，连续失败达到阈值则暂停，返回 False"""
     count = cfg.get("count", 1)
     max_workers = cfg.get("max_workers", 1)
+    max_fail = int(os.environ.get("MAX_FAIL", "3"))
 
     log.info(f"开始注册 {count} 个账号, 并发数 {max_workers}")
 
     if max_workers <= 1:
         success = 0
+        consecutive_fail = 0
         for i in range(1, count + 1):
             if register_one(i, count, cfg):
                 success += 1
+                consecutive_fail = 0
+            else:
+                consecutive_fail += 1
+                if consecutive_fail >= max_fail:
+                    log.error(f"连续失败 {consecutive_fail} 次，暂停任务")
+                    log.info(f"中止: 成功 {success}/{count}")
+                    return False
     else:
         success = 0
         futures = []
@@ -423,6 +438,7 @@ def _run_batch(cfg: dict):
                     success += 1
 
     log.info(f"完成: 成功 {success}/{count}")
+    return True
 
 
 def main():
@@ -445,7 +461,10 @@ def main():
         log.info(f"容器模式: 每 {loop_interval} 秒执行一轮")
         while True:
             try:
-                _run_batch(cfg)
+                ok = _run_batch(cfg)
+                if not ok:
+                    log.info("任务已暂停，进入待命状态。手动执行: python auto.py")
+                    break
             except Exception as e:
                 log.error(f"本轮执行异常: {e}")
             log.info(f"等待 {loop_interval} 秒后开始下一轮...")
