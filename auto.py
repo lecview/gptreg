@@ -66,7 +66,8 @@ def get_oai_code(email: str, cfg: dict) -> str:
     log.info(f"正在通过 Worker 监听验证码 (目标: {email}, 超时: {otp_timeout}s)...")
     for i in range(max_polls):
         try:
-            resp = std_requests.get(worker_url, params={"email": email}, timeout=10)
+            resp = std_requests.get(worker_url, params={"email": email}, timeout=10,
+                                     proxies={"http": None, "https": None})
             if resp.status_code == 200:
                 try:
                     data = resp.json()
