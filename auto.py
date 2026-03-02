@@ -40,28 +40,85 @@ def setup_logging(log_to_file: bool):
         log.addHandler(fh)
 
 
-# ========== 临时邮箱 (Cloudflare Worker) ==========
+# ========== 邮箱服务 ==========
 
 def create_email(cfg: dict) -> dict:
-    """通过 OWN_DOMAIN 生成随机邮箱，返回 {"address": ...}"""
+    """创建邮箱，返回 {"address": ...}"""
+    mode = cfg.get("email_mode", "worker")
     domain = cfg.get("own_domain")
     if not domain:
         raise ValueError("缺少 OWN_DOMAIN 配置")
     login = f"oai_{int(time.time())}_{random.randint(100, 999)}"
     address = f"{login}@{domain}"
+
+    if mode == "cloudmail":
+        cm_url = cfg.get("cloudmail_url", "").rstrip("/")
+        cm_token = cfg.get("cloudmail_token", "")
+        if not cm_url or not cm_token:
+            raise ValueError("Cloud-Mail 模式需要 CLOUDMAIL_URL 和 CLOUDMAIL_TOKEN")
+        resp = std_requests.post(f"{cm_url}/api/public/addUser",
+            headers={"Authorization": cm_token, "Content-Type": "application/json"},
+            json={"name": login, "domain": domain},
+            timeout=10, proxies={"http": None, "https": None})
+        if resp.status_code == 200 and resp.json().get("code") == 200:
+            log.info(f"[CloudMail] 创建邮箱成功: {address}")
+        else:
+            log.warning(f"[CloudMail] 创建邮箱返回: {resp.text}（可能已存在，继续）")
+
     return {"address": address}
 
 
 def get_oai_code(email: str, cfg: dict) -> str:
-    """通过 Cloudflare Worker API 轮询获取验证码"""
+    """轮询获取验证码"""
+    mode = cfg.get("email_mode", "worker")
+    otp_timeout = int(os.environ.get("OTP_TIMEOUT", "30"))
+    poll_interval = 3
+    max_polls = otp_timeout // poll_interval
+
+    if mode == "cloudmail":
+        return _get_code_cloudmail(email, cfg, max_polls, poll_interval, otp_timeout)
+    else:
+        return _get_code_worker(email, cfg, max_polls, poll_interval, otp_timeout)
+
+
+def _get_code_cloudmail(email, cfg, max_polls, poll_interval, otp_timeout):
+    """Cloud-Mail: POST /api/public/emailList 查询邮件"""
+    cm_url = cfg.get("cloudmail_url", "").rstrip("/")
+    cm_token = cfg.get("cloudmail_token", "")
+    regex = r"\b(\d{6})\b"
+
+    log.info(f"正在通过 CloudMail 监听验证码 (目标: {email}, 超时: {otp_timeout}s)...")
+    for i in range(max_polls):
+        try:
+            resp = std_requests.post(f"{cm_url}/api/public/emailList",
+                headers={"Authorization": cm_token, "Content-Type": "application/json"},
+                json={"toEmail": email, "type": 0},
+                timeout=10, proxies={"http": None, "https": None})
+            if resp.status_code == 200:
+                data = resp.json()
+                emails = data.get("data") or []
+                for msg in emails:
+                    for field in ["subject", "text", "content"]:
+                        text = msg.get(field) or ""
+                        m = re.search(regex, text)
+                        if m:
+                            code = m.group(1)
+                            log.info(f"CloudMail 返回验证码: {code} (耗时: {(i+1)*poll_interval}s)")
+                            return code
+        except Exception as e:
+            log.warning(f"CloudMail 请求异常: {e}")
+        if (i + 1) % 10 == 0:
+            log.info(f"等待验证码中... 已等待 {(i+1)*poll_interval}s / {otp_timeout}s")
+        time.sleep(poll_interval)
+    return None
+
+
+def _get_code_worker(email, cfg, max_polls, poll_interval, otp_timeout):
+    """Cloudflare Worker: GET ?email=xxx 查询验证码"""
     worker_url = cfg.get("worker_url")
     if not worker_url:
         raise ValueError("缺少 WORKER_URL 配置")
     worker_url = worker_url.rstrip("/")
-
-    otp_timeout = int(os.environ.get("OTP_TIMEOUT", "30"))
-    poll_interval = 3
-    max_polls = otp_timeout // poll_interval
 
     log.info(f"正在通过 Worker 监听验证码 (目标: {email}, 超时: {otp_timeout}s)...")
     for i in range(max_polls):
@@ -391,14 +448,17 @@ def register_one(index: int, total: int, cfg: dict) -> bool:
 def _env_override(cfg: dict):
     """环境变量优先覆盖 config.yaml 的值"""
     env_map = {
-        "count":        ("COUNT",        int),
-        "max_workers":  ("MAX_WORKERS",  int),
-        "upload":       ("UPLOAD",       int),
-        "upload_url":   ("UPLOAD_URL",   str),
-        "upload_token": ("UPLOAD_TOKEN", str),
-        "worker_url":   ("WORKER_URL",   str),
-        "own_domain":   ("OWN_DOMAIN",   str),
-        "log_to_file":  ("LOG_TO_FILE",  int),
+        "count":          ("COUNT",          int),
+        "max_workers":    ("MAX_WORKERS",    int),
+        "upload":         ("UPLOAD",         int),
+        "upload_url":     ("UPLOAD_URL",     str),
+        "upload_token":   ("UPLOAD_TOKEN",   str),
+        "email_mode":     ("EMAIL_MODE",     str),
+        "worker_url":     ("WORKER_URL",     str),
+        "own_domain":     ("OWN_DOMAIN",     str),
+        "cloudmail_url":  ("CLOUDMAIL_URL",  str),
+        "cloudmail_token":("CLOUDMAIL_TOKEN",str),
+        "log_to_file":    ("LOG_TO_FILE",    int),
     }
     for key, (env_name, cast) in env_map.items():
         val = os.environ.get(env_name)
