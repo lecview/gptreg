@@ -64,7 +64,7 @@ docker run -d --env-file .env auto-register
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `MANUAL_MODE` | `0` | `0` = 容器启动后自动运行，`1` = 待命，需手动执行 |
-| `LOOP_INTERVAL` | `0` | 循环间隔（秒），`>0` 时自动循环执行 |
+| `LOOP_INTERVAL` | `0` | 循环间隔（秒），`>0` 时自动循环执行 |自动执行间隔时间
 
 ### 上传到 CLIProxyAPI
 
