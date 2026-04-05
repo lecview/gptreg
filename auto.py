@@ -388,33 +388,26 @@ def run(cfg: dict) -> str:
         log.error(f"signup 失败: {signup_resp.text}")
         return None
 
-    endpoints = [
-        ("https://auth.openai.com/api/accounts/user/register", f'{{"password":"Openaipwd666!@","email":"{email}"}}'),
-        ("https://auth.openai.com/api/accounts/user/register", f'{{"password":"Openaipwd666!@","username":"{email}"}}'),
-        ("https://auth.openai.com/api/accounts/user/register", f'{{"password":"Openaipwd666!@","email":"{email}","password":"Openaipwd666!@"}}'),
-        ("https://auth.openai.com/api/accounts/user/register", f'{{"password":"Openaipwd666!@","username":{{"value":"{email}","kind":"email"}}}}'),
-        ("https://auth.openai.com/api/accounts/email-otp/send", f'{{"email":"{email}"}}'),
-        ("https://auth.openai.com/api/accounts/email-otp/send", f'{{"username":"{email}"}}'),
-        ("https://auth.openai.com/api/accounts/auth/password", f'{{"password":"Openaipwd666!@","username":"{email}"}}')
-    ]
-    pwd_resp = None
-    for ep, bdy in endpoints:
-        resp = s.post(ep, headers={"referer": "https://auth.openai.com/create-account/password",
-                                   "accept": "application/json", "content-type": "application/json",
-                                   "openai-sentinel-token": sentinel},
-                      data=bdy)
-        try:
-            log.info(f"try {ep} -> {resp.status_code}: {resp.json()}")
-        except:
-            log.info(f"try {ep} -> {resp.status_code}")
-            
-        if resp.status_code in (200, 201):
-            pwd_resp = resp
-            break
-            
-    if not pwd_resp:
-        log.error("设置密码失败: 所有端点及Payload配置均未返回成功状态码。")
+    pwd_body = f'{{"password":"Openaipwd666!@","username":"{email}"}}'
+    pwd_resp = s.post("https://auth.openai.com/api/accounts/user/register", 
+                      headers={"referer": "https://auth.openai.com/create-account/password",
+                               "accept": "application/json", "content-type": "application/json",
+                               "openai-sentinel-token": sentinel},
+                      data=pwd_body)
+    log.info(f"register-password: {pwd_resp.status_code}")
+    if pwd_resp.status_code not in (200, 201):
+        log.error(f"设置密码失败: {pwd_resp.text}")
         return None
+        
+    pwd_json = pwd_resp.json()
+    cont_url = pwd_json.get("continue_url")
+    cont_method = pwd_json.get("method", "GET").upper()
+    if cont_url:
+        log.info(f"触发验证码发送: {cont_method} {cont_url}")
+        if cont_method == "GET":
+            s.get(cont_url, headers={"referer": "https://auth.openai.com/create-account/password", "accept": "application/json"})
+        else:
+            s.post(cont_url, headers={"referer": "https://auth.openai.com/create-account/password", "accept": "application/json"})
 
     code = get_oai_code(email, cfg)
     if not code:
