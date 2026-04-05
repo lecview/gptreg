@@ -405,9 +405,10 @@ def run(cfg: dict) -> str:
     if cont_url:
         log.info(f"触发验证码发送: {cont_method} {cont_url}")
         if cont_method == "GET":
-            s.get(cont_url, headers={"referer": "https://auth.openai.com/create-account/password", "accept": "application/json"})
+            cont_resp = s.get(cont_url, headers={"referer": "https://auth.openai.com/create-account/password", "accept": "application/json"})
         else:
-            s.post(cont_url, headers={"referer": "https://auth.openai.com/create-account/password", "accept": "application/json"})
+            cont_resp = s.post(cont_url, headers={"referer": "https://auth.openai.com/create-account/password", "accept": "application/json"})
+        log.info(f"验证码发送响应: {cont_resp.status_code} - {cont_resp.text[:200]}")
 
     code = get_oai_code(email, cfg)
     if not code:
