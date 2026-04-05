@@ -351,14 +351,33 @@ def run(cfg: dict) -> str:
     log.info(f"oai-did: {did}")
 
     signup_body = f'{{"username":{{"value":"{email}","kind":"email"}},"screen_hint":"signup"}}'
-    sen_req_body = f'{{"p":"","id":"{did}","flow":"authorize_continue"}}'
-    sen_resp = requests.post("https://sentinel.openai.com/backend-api/sentinel/req",
-                             headers={"origin": "https://sentinel.openai.com",
-                                      "referer": "https://sentinel.openai.com/backend-api/sentinel/frame.html?sv=20260219f9f6",
-                                      "content-type": "text/plain;charset=UTF-8"}, data=sen_req_body)
-    log.info(f"sentinel: {sen_resp.status_code}")
-    sen_token = sen_resp.json()["token"]
-    sentinel = f'{{"p": "", "t": "", "c": "{sen_token}", "id": "{did}", "flow": "authorize_continue"}}'
+    
+    import subprocess
+    
+    user_agent = s.headers.get("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36")
+    cli_input = json.dumps({
+        "device_id": did,
+        "user_agent": user_agent,
+        "flow": "authorize_continue"
+    })
+    
+    cli_path = "/app/sentinel-cli"
+    if not os.path.exists(cli_path):
+        cli_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sentinel-cli")
+        if os.name == 'nt' and not cli_path.endswith('.exe'):
+            cli_path += ".exe"
+
+    log.info("正在调用 sentinel-go 生成 token...")
+    try:
+        proc = subprocess.run([cli_path, cli_input], capture_output=True, text=True, check=True)
+        sentinel = proc.stdout.strip()
+        log.info("sentinel-go: 生成 token 成功")
+    except subprocess.CalledProcessError as e:
+        log.error(f"sentinel-go 执行失败: {e.stderr}")
+        return None
+    except FileNotFoundError:
+        log.error(f"找不到执行文件 {cli_path}，如果你在本地运行，请先编译 Go 代码。")
+        return None
 
     signup_resp = s.post("https://auth.openai.com/api/accounts/authorize/continue",
                          headers={"referer": "https://auth.openai.com/create-account", "accept": "application/json",

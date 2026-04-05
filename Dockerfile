@@ -1,3 +1,9 @@
+FROM golang:1.21-alpine AS go-builder
+WORKDIR /src
+COPY openai-sentinel-go/ ./openai-sentinel-go/
+WORKDIR /src/openai-sentinel-go
+RUN go build -o /sentinel-cli cmd/cli/main.go
+
 FROM python:3.11-slim
 
 # curl_cffi 需要的系统依赖
@@ -16,7 +22,8 @@ RUN unset ALL_PROXY all_proxy HTTP_PROXY HTTPS_PROXY http_proxy https_proxy && \
     pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+COPY --from=go-builder /sentinel-cli /app/sentinel-cli
 
-RUN mkdir -p files logs && chmod +x entrypoint.sh
+RUN mkdir -p files logs && chmod +x entrypoint.sh && chmod +x /app/sentinel-cli
 
 ENTRYPOINT ["sh", "entrypoint.sh"]
