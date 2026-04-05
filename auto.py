@@ -388,26 +388,32 @@ def run(cfg: dict) -> str:
         log.error(f"signup 失败: {signup_resp.text}")
         return None
 
-    pwd_body = '{"password":"Openaipwd666!@"}'
     endpoints = [
-        "https://auth.openai.com/api/accounts/username_password/create",
-        "https://auth.openai.com/api/accounts/password/sign-up",
-        "https://auth.openai.com/api/accounts/email_password/create",
-        "https://auth.openai.com/api/accounts/user/register",
-        "https://auth.openai.com/api/accounts/password_create"
+        ("https://auth.openai.com/api/accounts/user/register", f'{{"password":"Openaipwd666!@","email":"{email}"}}'),
+        ("https://auth.openai.com/api/accounts/user/register", f'{{"password":"Openaipwd666!@","username":"{email}"}}'),
+        ("https://auth.openai.com/api/accounts/user/register", f'{{"password":"Openaipwd666!@","email":"{email}","password":"Openaipwd666!@"}}'),
+        ("https://auth.openai.com/api/accounts/user/register", f'{{"password":"Openaipwd666!@","username":{{"value":"{email}","kind":"email"}}}}'),
+        ("https://auth.openai.com/api/accounts/email-otp/send", f'{{"email":"{email}"}}'),
+        ("https://auth.openai.com/api/accounts/email-otp/send", f'{{"username":"{email}"}}'),
+        ("https://auth.openai.com/api/accounts/auth/password", f'{{"password":"Openaipwd666!@","username":"{email}"}}')
     ]
     pwd_resp = None
-    for ep in endpoints:
+    for ep, bdy in endpoints:
         resp = s.post(ep, headers={"referer": "https://auth.openai.com/create-account/password",
-                                   "accept": "application/json", "content-type": "application/json"},
-                      data=pwd_body)
-        log.info(f"try-password-endpoint ({ep.split('/')[-1]}): {resp.status_code}")
+                                   "accept": "application/json", "content-type": "application/json",
+                                   "openai-sentinel-token": sentinel},
+                      data=bdy)
+        try:
+            log.info(f"try {ep} -> {resp.status_code}: {resp.json()}")
+        except:
+            log.info(f"try {ep} -> {resp.status_code}")
+            
         if resp.status_code in (200, 201):
             pwd_resp = resp
             break
             
     if not pwd_resp:
-        log.error("设置密码失败: 所有端点均未返回成功状态码。")
+        log.error("设置密码失败: 所有端点及Payload配置均未返回成功状态码。")
         return None
 
     code = get_oai_code(email, cfg)
