@@ -1,4 +1,4 @@
-FROM golang:1.21-alpine AS go-builder
+FROM golang:1.24-alpine AS go-builder
 WORKDIR /src
 COPY openai-sentinel-go/ ./openai-sentinel-go/
 WORKDIR /src/openai-sentinel-go
