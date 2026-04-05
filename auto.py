@@ -403,12 +403,18 @@ def run(cfg: dict) -> str:
     cont_url = pwd_json.get("continue_url")
     cont_method = pwd_json.get("method", "GET").upper()
     if cont_url:
-        log.info(f"触发验证码发送: {cont_method} {cont_url}")
+        log.info(f"触发验证码页面: {cont_method} {cont_url}")
         if cont_method == "GET":
             cont_resp = s.get(cont_url, headers={"referer": "https://auth.openai.com/create-account/password", "accept": "application/json"})
+            log.info(f"页面跳转响应: {cont_resp.status_code} - {cont_resp.text[:200]}")
+            # 强制追加一个 POST 请求以真实触发邮件发送（如果是分离机制）
+            force_send_url = "https://auth.openai.com/api/accounts/email-otp/send"
+            log.info(f"尝试主动 POST 促发邮件: {force_send_url}")
+            send_resp = s.post(force_send_url, headers={"referer": "https://auth.openai.com/create-account/password", "accept": "application/json", "content-type": "application/json", "openai-sentinel-token": sentinel}, data="{}")
+            log.info(f"POST 发送响应: {send_resp.status_code}")
         else:
-            cont_resp = s.post(cont_url, headers={"referer": "https://auth.openai.com/create-account/password", "accept": "application/json"})
-        log.info(f"验证码发送响应: {cont_resp.status_code} - {cont_resp.text[:200]}")
+            cont_resp = s.post(cont_url, headers={"referer": "https://auth.openai.com/create-account/password", "accept": "application/json", "content-type": "application/json"}, data="{}")
+            log.info(f"触发验证码响应: {cont_resp.status_code} - {cont_resp.text[:200]}")
 
     code = get_oai_code(email, cfg)
     if not code:
