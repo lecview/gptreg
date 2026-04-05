@@ -388,12 +388,26 @@ def run(cfg: dict) -> str:
         log.error(f"signup 失败: {signup_resp.text}")
         return None
 
-    otp_resp = s.post("https://auth.openai.com/api/accounts/passwordless/send-otp",
-                      headers={"referer": "https://auth.openai.com/create-account/password",
-                               "accept": "application/json", "content-type": "application/json"})
-    log.info(f"send-otp: {otp_resp.status_code}")
-    if otp_resp.status_code != 200:
-        log.error(f"send-otp 失败: {otp_resp.text}")
+    pwd_body = '{"password":"Openaipwd666!@"}'
+    endpoints = [
+        "https://auth.openai.com/api/accounts/username_password/create",
+        "https://auth.openai.com/api/accounts/password/sign-up",
+        "https://auth.openai.com/api/accounts/email_password/create",
+        "https://auth.openai.com/api/accounts/user/register",
+        "https://auth.openai.com/api/accounts/password_create"
+    ]
+    pwd_resp = None
+    for ep in endpoints:
+        resp = s.post(ep, headers={"referer": "https://auth.openai.com/create-account/password",
+                                   "accept": "application/json", "content-type": "application/json"},
+                      data=pwd_body)
+        log.info(f"try-password-endpoint ({ep.split('/')[-1]}): {resp.status_code}")
+        if resp.status_code in (200, 201):
+            pwd_resp = resp
+            break
+            
+    if not pwd_resp:
+        log.error("设置密码失败: 所有端点均未返回成功状态码。")
         return None
 
     code = get_oai_code(email, cfg)
